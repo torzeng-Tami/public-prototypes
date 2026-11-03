@@ -1,5 +1,5 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.SpecModel=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const MODULES=[{id:'basic',name:'基础信息',icon:'file',description:'定义产品身份、型号与基础规格信息'},{id:'parts',name:'产品主要部件',icon:'layers',description:'维护核心组件、材料及供应商信息'},{id:'performance',name:'产品性能',icon:'activity',description:'定义额定参数、性能指标与测试要求'},{id:'safety',name:'安规重要零件',icon:'shield',description:'维护安规关键零件及认证信息'}];
+  const MODULES=[{id:'basic',name:'基础信息',icon:'file',description:'定义产品身份、型号与基础规格信息'},{id:'parts',name:'产品结构',icon:'layers',description:'维护核心组件、材料及供应商信息'},{id:'performance',name:'产品性能',icon:'activity',description:'定义额定参数、性能指标与测试要求'},{id:'safety',name:'安规重要零件',icon:'shield',description:'维护安规关键零件及认证信息'}];
   const TYPES={text:'文本填写框',textarea:'多行文本框',number:'数字填写框',select:'下拉单选框',multi:'下拉多选框',date:'日期选择器',attachment:'上传附件',table:'明细表格'};
   const clone=x=>JSON.parse(JSON.stringify(x));
   const uid=()=>typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`id-${Date.now()}-${Math.random().toString(36).slice(2)}`;

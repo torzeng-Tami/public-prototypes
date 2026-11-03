@@ -28,3 +28,7 @@ dialog{border:0;padding:0;border-radius:10px;box-shadow:0 25px 100px #1428393b;w
 .table-field{grid-column:1 / -1}
 .table-errors:empty{display:none}
 .table-errors{padding:8px 12px;color:#c34e57;font-size:12px}
+.link-alert{margin-top:4px;color:#d64545;font-size:12px;line-height:1.45}
+.line-table{min-width:1480px}
+.config-context{justify-content:space-between}
+.config-context .spacer, .config-context button{margin-left:auto}
