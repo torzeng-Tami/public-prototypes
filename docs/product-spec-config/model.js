@@ -6,10 +6,10 @@
   const options=v=>[...new Set(String(v||'').split(/[,，\n;；]/).map(s=>s.trim()).filter(Boolean))];
   function field(module,name,key,type='text',required=false,value='',opts=''){return{id:uid(),module,name,key,type,required,value,options:opts};}
   const ATTACHMENT_MAX_BYTES=10*1024*1024;
-  const ATTACHMENT_ACCEPT='.xls,.xlsx,.doc,.docx';
+  const ATTACHMENT_ACCEPT='.xls,.xlsx,.doc,.docx,.pdf';
   function validateAttachment(file){
     if(!file||!Number.isFinite(file.size)||file.size<0)return '无法识别文件大小，请重新选择文件';
-    if(!/\.(xls|xlsx|doc|docx)$/i.test(String(file.name||'')))return '仅支持 Excel / Word 文件（.xls、.xlsx、.doc、.docx）';
+    if(!/\.(xls|xlsx|doc|docx|pdf)$/i.test(String(file.name||'')))return '仅支持 Excel / Word / PDF 文件（.xls、.xlsx、.doc、.docx、.pdf）';
     if(file.size>ATTACHMENT_MAX_BYTES)return '单个附件不能超过 10 MB';
     return '';
   }
