@@ -1,10 +1,24 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.SpecModel=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
   const MODULES=[{id:'basic',name:'基础信息',icon:'file',description:'定义产品身份、型号与基础规格信息'},{id:'parts',name:'产品主要部件',icon:'layers',description:'维护核心组件、材料及供应商信息'},{id:'performance',name:'产品性能',icon:'activity',description:'定义额定参数、性能指标与测试要求'},{id:'safety',name:'安规重要零件',icon:'shield',description:'维护安规关键零件及认证信息'}];
-  const TYPES={text:'文本填写框',textarea:'多行文本框',number:'数字填写框',select:'下拉单选框',multi:'下拉多选框',date:'日期选择器'};
+  const TYPES={text:'文本填写框',textarea:'多行文本框',number:'数字填写框',select:'下拉单选框',multi:'下拉多选框',date:'日期选择器',attachment:'上传附件'};
   const clone=x=>JSON.parse(JSON.stringify(x));
   const uid=()=>typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const options=v=>[...new Set(String(v||'').split(/[,，\n;；]/).map(s=>s.trim()).filter(Boolean))];
   function field(module,name,key,type='text',required=false,value='',opts=''){return{id:uid(),module,name,key,type,required,value,options:opts};}
+  const ATTACHMENT_MAX_BYTES=10*1024*1024;
+  const ATTACHMENT_ACCEPT='.xls,.xlsx,.doc,.docx';
+  function validateAttachment(file){
+    if(!file||!Number.isFinite(file.size)||file.size<0)return '无法识别文件大小，请重新选择文件';
+    if(!/\.(xls|xlsx|doc|docx)$/i.test(String(file.name||'')))return '仅支持 Excel / Word 文件（.xls、.xlsx、.doc、.docx）';
+    if(file.size>ATTACHMENT_MAX_BYTES)return '单个附件不能超过 10 MB';
+    return '';
+  }
+  function newField(fields,module){
+    const stem='field_'+uid().replace(/[^a-zA-Z0-9_]/g,'');let key=stem,index=1;
+    const keys=new Set(fields.map(f=>String(f.key).toLowerCase()));
+    while(keys.has(key.toLowerCase()))key=stem+'_'+index++;
+    return field(module,'',key);
+  }
   function base(){return[
     field('basic','产品名称','product_name','text',true),field('basic','产品型号','product_model','text',true),
     field('basic','产品颜色','product_color','select',true,'白色','白色,黑色,灰色'),field('basic','销售区域','sales_region','multi',false,'欧洲','欧洲,北美,日本,中国'),
@@ -25,6 +39,7 @@
       if(!MODULES.some(m=>m.id===f.module))fail('字段所属模块无效');
       if(!Object.hasOwn(TYPES,f.type))fail('控件类型无效');
       if(['select','multi'].includes(f.type)){const opts=options(f.options);if(!opts.length)fail('请填写可选值');const selected=f.type==='multi'?options(f.value):String(f.value??'').trim()?[String(f.value??'').trim()]:[];if(selected.some(x=>!opts.includes(x)))fail('默认值必须属于可选值');}
+      if(f.type==='attachment'&&String(f.value??'').trim())fail('上传附件不支持设置默认文件');
       if(f.type==='number'&&String(f.value??'').trim()&&!Number.isFinite(Number(f.value)))fail('请输入有效的数字默认值');
       if(f.type==='date'&&f.value){const value=String(f.value),date=new Date(value+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)fail('日期默认值需为有效的 YYYY-MM-DD 日期');}
     }return errors;
@@ -81,17 +96,27 @@
     groupOf(data,groupId);ownedSpec(data,groupId,templateId);const next=clone(data),g=groupOf(next,groupId);g.defaultTemplateId=templateId;touch(g,actor,at);return next;
   }
   function specLines(data,templateId){specOf(data,templateId);return data.groups.flatMap(g=>g.children.filter(c=>c.templateIds.includes(templateId)).map(c=>({id:c.id,name:c.name,groupId:g.id,groupName:g.name,primary:c.primaryTemplateId===templateId})));}
-  function setSpecLines(data,templateId,selectedIds,replacements={},actor=defaultActor,at=timestamp()){
+  function setSpecLines(data,templateId,selectedIds,primaryChoices={},actor=defaultActor,at=timestamp()){
     const t=specOf(data,templateId),g=groupOf(data,t.groupId),selected=new Set(selectedIds);
     for(const id of selected){if(lineOf(data,id).group.id!==g.id)throw Error('只能关联所属一级品线下的二级品线');}
+    for(const [id,value] of Object.entries(primaryChoices)){
+      if(typeof value!=='boolean')throw Error('是否主模板只能选择是或否');
+      if(!selected.has(id))throw Error('请先勾选关联品线，再设置是否主模板');
+    }
     const next=clone(data),ng=groupOf(next,g.id);
-    for(const c of ng.children){const had=c.templateIds.includes(templateId),add=selected.has(c.id);if(had===add)continue;
-      const ids=add?[...c.templateIds,templateId]:c.templateIds.filter(id=>id!==templateId);
+    for(const c of ng.children){
+      const had=c.templateIds.includes(templateId),add=selected.has(c.id);
+      const ids=add?[...new Set([...c.templateIds,templateId])]:c.templateIds.filter(id=>id!==templateId);
+      const isPrimary=add&&(Object.hasOwn(primaryChoices,c.id)?primaryChoices[c.id]:had&&c.primaryTemplateId===templateId);
       let primary=c.primaryTemplateId;
-      if(!ids.length)throw Error(c.name+'：至少保留一个规格书关联');
-      if(!add&&primary===templateId){primary=replacements[c.id];if(!primary||!ids.includes(primary))throw Error(c.name+'：请先选择替代主模板');}
-      if(add&&!c.templateIds.length)primary=templateId;
-      assertLinks(next,ng,ids,primary);c.templateIds=ids;c.primaryTemplateId=primary;touch(c,actor,at);
+      if(isPrimary)primary=templateId;
+      else if(primary===templateId){
+        if(!ids.length)throw Error(c.name+'：至少保留一个规格书关联');
+        throw Error(c.name+'：当前规格书是主模板，请先在品线管理中设置其他主模板，再取消关联或选择否');
+      }
+      if(had===add&&primary===c.primaryTemplateId)continue;
+      assertLinks(next,ng,ids,primary);
+      c.templateIds=ids;c.primaryTemplateId=primary;touch(c,actor,at);
     }
     return next;
   }
@@ -131,5 +156,5 @@
     return data;
   }
 
-  return{MODULES,TYPES,clone,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed,baseFields:base,saveSpec,configureLine,setGroupDefault,specLines,setSpecLines,initializationReport,initializeLinks,createLine,spuSelection,upgradeTemplates,seedTemplates};
+  return{MODULES,TYPES,ATTACHMENT_MAX_BYTES,ATTACHMENT_ACCEPT,validateAttachment,newField,clone,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed,baseFields:base,saveSpec,configureLine,setGroupDefault,specLines,setSpecLines,initializationReport,initializeLinks,createLine,spuSelection,upgradeTemplates,seedTemplates};
 });

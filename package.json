@@ -5,6 +5,6 @@
   "type": "commonjs",
   "description": "Publicly approved interactive product prototypes",
   "scripts": {
-    "test": "node --test tests/model.test.cjs tests/template-model.test.cjs"
+    "test": "node --test tests/*.test.cjs"
   }
 }
