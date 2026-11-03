@@ -1,34 +1,27 @@
 # Public Prototypes · 公开产品原型
 
-仅存放已明确允许公开的产品原型与方案，不包含私有项目、业务数据或服务凭据。
+仅存放明确允许公开的原型，不包含私有项目、业务数据、内部截图或服务凭据。
 
-## 产品规格书配置
+## 产品规格书模板管理（2026-11-03 更新）
 
-- 可编辑交互源码：`docs/product-spec-config/`
-- 产品方案：`docs/product-spec-config/product-plan.html`
-- 支持模板继承、字段编辑、版本管理、发布演示与前端联动预览。
-- 仅为本地前端模拟，不包含生产登录、服务端权限或实际业务发布。
-- 保存只作用于当前浏览器、当前站点的 localStorage；不同用户不会共享修改。
-- 本仓库是本次授权原型的公开副本，不含本地工作台中的其他业务原型。
+- 在线原型：https://torzeng-tami.github.io/public-prototypes/product-spec-config/
+- 产品方案：https://torzeng-tami.github.io/public-prototypes/product-spec-config/product-plan.html
+- 源码：`docs/product-spec-config/`。
 
-## 本地运行
+规格书按名称维护，归属唯一一级品线。模板端可多选关联同一级下的二级品线；品线管理中可设置一级默认、二级多选关联和唯一主模板。新增 SPU 演示默认使用二级主模板，可选范围仅为该品线关联模板。
 
-无需安装前端依赖：
+初始化以与现有老模板一致的规格书为一级默认，补齐缺失的二级关联和主模板；不覆盖已配置主模板，不在本次改写历史 SPU。示例数据虚构，真实模板核对、权限及生产迁移另行实施。
 
-```sh
-python -m http.server 8080 --directory docs
-```
+### 本地运行与验证
 
-浏览器打开 `http://localhost:8080/product-spec-config/`。
+`python -m http.server 8080 --directory docs` 后打开 `http://localhost:8080/product-spec-config/`。
 
-## 模型测试
+`npm test` 执行 35 项新旧模型兼容测试，无需安装运行依赖。
 
-使用 Node.js：
+### 保存与兼容
 
-```sh
-node --test tests/model.test.cjs
-```
+仅使用当前浏览器、当前 origin 的 localStorage；不会自动提交 Git，不同用户的编辑结果不共享。新键为 starmerx-spec-template-studio-v2，旧键 starmerx-spec-field-studio-v1 保留，原字段差异转换成独立规格书。不同地址、端口或浏览器不互通。
 
-## 发布
+页面为交互原型，不创建真实 SPU，不包含真实登录、后端鉴权或多人协作。请勿录入敏感资料。
 
-GitHub Pages 从默认分支的 `/docs` 目录发布。后续修改公开内容前，应确认不含私有资料或密钥。仅提交当前允许公开的项目文件，不上传整个本地工作区。
+GitHub Pages 从 main 的 /docs 发布。后续仅上传明确获准公开的文件。

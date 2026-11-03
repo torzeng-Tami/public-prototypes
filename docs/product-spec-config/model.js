@@ -53,5 +53,83 @@
     const rows=[['home','家用电器','PL-001','吸尘器','洗地机','空气净化器','电风扇'],['kitchen','厨房电器','PL-002','空气炸锅','咖啡机','电热水壶'],['care','个护健康','PL-003','电动牙刷','电吹风'],['outdoor','户外园艺','PL-004','高压清洗机','割草机']];
     return{schema:1,groups:rows.map(([id,name,code,...names],gi)=>{const template=base();return{id,name,code,template,updated:'2026-11-02 10:24',children:names.map((n,i)=>{const empty=gi===3&&i===1;const first={id:`${id}-${i}-v1`,number:'V1.0',name:'通用标准版',status:'published',fields:clone(template),updated:'2026-10-28 16:32',author:'陈悦',source:'一级默认模板'};const second={...clone(first),id:`${id}-${i}-v2`,number:'V1.1',name:'海外销售版',updated:'2026-10-30 11:08',author:'林晓'};second.fields.push(field('basic','包装语言','package_language','select',true,'英语','英语,德语,法语,日语'));const draft={...clone(second),id:`${id}-${i}-draft`,number:'V2.0',name:'新品升级版',status:'draft',updated:'2026-11-02 10:24'};return{id:`${id}-${i}`,name:n,code:`${code}-${String(i+1).padStart(3,'0')}`,author:i%2?'陈悦':'林晓',updated:'2026-11-02 10:24',versions:empty?[]:i===0?[first,second,draft]:[first],defaultVersionId:empty?null:first.id};})};})};
   }
-  return{MODULES,TYPES,clone,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed};
+
+  // Schema 2 separates template ownership from secondary-line associations.
+  const defaultActor='演示用户';
+  const timestamp=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+  function groupOf(data,id){const g=data.groups.find(g=>g.id===id);if(!g)throw Error('一级品线不存在');return g;}
+  function specOf(data,id){const t=data.templates.find(t=>t.id===id);if(!t)throw Error('规格书不存在');return t;}
+  function lineOf(data,id){for(const g of data.groups){const c=g.children.find(c=>c.id===id);if(c)return{group:g,line:c};}throw Error('二级品线不存在');}
+  function ownedSpec(data,groupId,id){const t=specOf(data,id);if(t.groupId!==groupId)throw Error('只能选择同一一级品线下的规格书');return t;}
+  function assertLinks(data,g,ids,primary){if(!Array.isArray(ids)||!ids.length)throw Error('每个二级品线至少关联一个规格书');for(const id of ids)ownedSpec(data,g.id,id);if(typeof primary!=='string'||!ids.includes(primary))throw Error('必须在已关联规格书中选择一个主模板');}
+  function touch(object,actor,at){object.updater=actor;object.updatedAt=at;}
+  function saveSpec(data,input,actor=defaultActor,at=timestamp()){
+    const name=String(input.name||'').trim();if(!name)throw Error('请输入规格书名称');if(name.length>60)throw Error('规格书名称不能超过60个字符');
+    groupOf(data,input.groupId);const old=data.templates.find(t=>t.id===input.id);
+    if(old&&old.groupId!==input.groupId)throw Error('已有规格书不可直接变更一级品线归属');
+    if(data.templates.some(t=>t.id!==input.id&&t.groupId===input.groupId&&t.name.trim().toLowerCase()===name.toLowerCase()))throw Error('该一级品线下已存在同名规格书');
+    const errors=validate(input.fields||[]);if(errors.length)throw Error(errors[0].message);
+    const next=clone(data);const t={...(old||{}),id:old?.id||input.id||uid(),name,groupId:input.groupId,fields:clone(input.fields),creator:old?.creator||actor,createdAt:old?.createdAt||at,updater:actor,updatedAt:at};
+    t.fields.forEach(f=>{f.name=f.name.trim();f.key=f.key.trim();});
+    const index=next.templates.findIndex(v=>v.id===t.id);if(index<0)next.templates.push(t);else next.templates[index]=t;return next;
+  }
+  function configureLine(data,lineId,templateIds,primaryTemplateId,actor=defaultActor,at=timestamp()){
+    const {group}=lineOf(data,lineId);assertLinks(data,group,templateIds,primaryTemplateId);
+    const next=clone(data),{line}=lineOf(next,lineId);line.templateIds=[...new Set(templateIds)];line.primaryTemplateId=primaryTemplateId;touch(line,actor,at);return next;
+  }
+  function setGroupDefault(data,groupId,templateId,actor=defaultActor,at=timestamp()){
+    groupOf(data,groupId);ownedSpec(data,groupId,templateId);const next=clone(data),g=groupOf(next,groupId);g.defaultTemplateId=templateId;touch(g,actor,at);return next;
+  }
+  function specLines(data,templateId){specOf(data,templateId);return data.groups.flatMap(g=>g.children.filter(c=>c.templateIds.includes(templateId)).map(c=>({id:c.id,name:c.name,groupId:g.id,groupName:g.name,primary:c.primaryTemplateId===templateId})));}
+  function setSpecLines(data,templateId,selectedIds,replacements={},actor=defaultActor,at=timestamp()){
+    const t=specOf(data,templateId),g=groupOf(data,t.groupId),selected=new Set(selectedIds);
+    for(const id of selected){if(lineOf(data,id).group.id!==g.id)throw Error('只能关联所属一级品线下的二级品线');}
+    const next=clone(data),ng=groupOf(next,g.id);
+    for(const c of ng.children){const had=c.templateIds.includes(templateId),add=selected.has(c.id);if(had===add)continue;
+      const ids=add?[...c.templateIds,templateId]:c.templateIds.filter(id=>id!==templateId);
+      let primary=c.primaryTemplateId;
+      if(!ids.length)throw Error(c.name+'：至少保留一个规格书关联');
+      if(!add&&primary===templateId){primary=replacements[c.id];if(!primary||!ids.includes(primary))throw Error(c.name+'：请先选择替代主模板');}
+      if(add&&!c.templateIds.length)primary=templateId;
+      assertLinks(next,ng,ids,primary);c.templateIds=ids;c.primaryTemplateId=primary;touch(c,actor,at);
+    }
+    return next;
+  }
+  function initializationReport(data){const result={pending:[],ready:[],blocked:[]};for(const g of data.groups){for(const c of g.children){try{
+    if(!c.templateIds.length){if(!g.defaultTemplateId)throw Error('一级品线尚未设置默认模板');ownedSpec(data,g.id,g.defaultTemplateId);result.pending.push({id:c.id,name:c.name,groupName:g.name});}
+    else{assertLinks(data,g,c.templateIds,c.primaryTemplateId);result.ready.push({id:c.id,name:c.name});}
+    }catch(e){result.blocked.push({id:c.id,name:c.name,groupName:g.name,message:e.message});}}}return result;}
+  function initializeLinks(data,actor='初始化',at=timestamp()){
+    const report=initializationReport(data);if(report.blocked.length)throw Error(report.blocked.map(x=>x.groupName+' / '+x.name+'：'+x.message).join('；'));
+    const next=clone(data);for(const id of report.pending.map(c=>c.id)){const {group,line}=lineOf(next,id);line.templateIds=[group.defaultTemplateId];line.primaryTemplateId=group.defaultTemplateId;touch(line,actor,at);}return next;
+  }
+  function createLine(data,groupId,name,actor=defaultActor,at=timestamp()){
+    const g=groupOf(data,groupId);name=String(name||'').trim();if(!name)throw Error('请输入二级品线名称');if(name.length>40)throw Error('品线名称不能超过40个字符');if(g.children.some(c=>c.name.toLowerCase()===name.toLowerCase()))throw Error('同一级品线下已存在同名品线');
+    if(!g.defaultTemplateId)throw Error('请先设置一级品线默认模板');ownedSpec(data,g.id,g.defaultTemplateId);
+    const next=clone(data);groupOf(next,groupId).children.push({id:uid(),name,code:nextChildCode(g),templateIds:[g.defaultTemplateId],primaryTemplateId:g.defaultTemplateId,creator:actor,updater:actor,updatedAt:at});return next;
+  }
+  function spuSelection(data,lineId,templateId){const {group,line}=lineOf(data,lineId);assertLinks(data,group,line.templateIds,line.primaryTemplateId);const id=templateId||line.primaryTemplateId;if(!line.templateIds.includes(id))throw Error('只能选择该二级品线已关联的规格书');return{templates:line.templateIds.map(id=>clone(specOf(data,id))),selected:clone(specOf(data,id)),primaryTemplateId:line.primaryTemplateId};}
+  function validShape(data){return data&&data.schema===2&&Array.isArray(data.groups)&&Array.isArray(data.templates)&&data.groups.every(g=>g&&typeof g.id==='string'&&Array.isArray(g.children)&&g.children.every(c=>c&&Array.isArray(c.templateIds)))&&data.templates.every(t=>t&&typeof t.id==='string'&&typeof t.name==='string'&&Array.isArray(t.fields));}
+  function upgradeTemplates(old){
+    if(validShape(old))return clone(old);
+    if(!old||old.schema!==1||!Array.isArray(old.groups))throw Error('保存的数据格式不支持，请保留原数据后联系维护人员');
+    const next={schema:2,groups:[],templates:[],migration:{from:1,notice:'已保留旧模板与不同字段配置；二级主模板按一级原模板初始化。旧浏览器数据未覆盖。'}};
+    for(const g of old.groups){if(!Array.isArray(g.template)||!Array.isArray(g.children))throw Error('旧数据不完整，未覆盖原数据');
+      const defaultId='legacy-default-'+g.id;const group={id:g.id,name:g.name,code:g.code,defaultTemplateId:defaultId,updater:'演示用户',updatedAt:g.updated||timestamp(),children:g.children.map(c=>({id:c.id,name:c.name,code:c.code,templateIds:[defaultId],primaryTemplateId:defaultId,creator:c.author||defaultActor,updater:c.author||defaultActor,updatedAt:c.updated||timestamp()}))};next.groups.push(group);
+      const normalized=fields=>JSON.stringify(fields.map(({id,...rest})=>rest));const signatures=new Set([normalized(g.template)]);
+      next.templates.push({id:defaultId,groupId:g.id,name:g.name+'通用规格书（原模板）',fields:clone(g.template),creator:defaultActor,updater:defaultActor,createdAt:g.updated||timestamp(),updatedAt:g.updated||timestamp(),origin:'legacy-default'});
+      for(const c of g.children){for(const v of c.versions||[]){const sig=normalized(v.fields);if(signatures.has(sig))continue;signatures.add(sig);let name=c.name+' · '+v.name;let index=2;while(next.templates.some(t=>t.groupId===g.id&&t.name===name))name=c.name+' · '+v.name+'（'+index+++'）';next.templates.push({id:uid(),groupId:g.id,name,fields:clone(v.fields),creator:v.author||defaultActor,updater:v.author||defaultActor,createdAt:v.updated||timestamp(),updatedAt:v.updated||timestamp(),origin:'legacy-preserved'});}}
+    }
+    return next;
+  }
+  function seedTemplates(){
+    const old=seed();for(const g of old.groups)for(const c of g.children)c.versions=[];
+    let data=upgradeTemplates(old);delete data.migration;
+    data=saveSpec(data,{groupId:'home',name:'家电海外销售规格书',fields:[...base(),field('basic','包装语言','package_language','select',true,'英语','英语,德语,法语')]},defaultActor,'2026-11-03 09:00');
+    data=saveSpec(data,{groupId:'home',name:'清洁电器规格书',fields:[...base(),field('performance','吸力（Pa）','suction','number',true)]},defaultActor,'2026-11-03 09:20');
+    data=saveSpec(data,{groupId:'kitchen',name:'食品接触类规格书',fields:[...base(),field('safety','食品接触认证','food_contact','text',true)]},defaultActor,'2026-11-03 09:40');
+    return data;
+  }
+
+  return{MODULES,TYPES,clone,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed,baseFields:base,saveSpec,configureLine,setGroupDefault,specLines,setSpecLines,initializationReport,initializeLinks,createLine,spuSelection,upgradeTemplates,seedTemplates};
 });
