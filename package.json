@@ -1,0 +1,8 @@
+{
+  "name": "public-prototypes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Publicly approved interactive product prototypes",
+  "scripts": { "test": "node --test tests/model.test.cjs" }
+}
