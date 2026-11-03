@@ -83,27 +83,27 @@
   function specOf(data,id){const t=data.templates.find(t=>t.id===id);if(!t)throw Error('规格书不存在');return t;}
   function lineOf(data,id){for(const g of data.groups){const c=g.children.find(c=>c.id===id);if(c)return{group:g,line:c};}throw Error('二级品线不存在');}
   function ownedSpec(data,groupId,id){const t=specOf(data,id);if(t.groupId!==groupId)throw Error('只能选择同一一级品线下的规格书');return t;}
-  function assertLinks(data,g,ids,primary){if(!Array.isArray(ids)||!ids.length)throw Error('每个二级品线至少关联一个规格书');for(const id of ids)ownedSpec(data,g.id,id);if(typeof primary!=='string'||!ids.includes(primary))throw Error('必须在已关联规格书中选择一个主模板');}
+  function assertLinks(data,ids,primary){if(!Array.isArray(ids)||!ids.length)throw Error('每个二级品线至少关联一个规格书');for(const id of ids)specOf(data,id);if(typeof primary!=='string'||!ids.includes(primary))throw Error('必须在已关联规格书中选择一个主模板');}
   function touch(object,actor,at){object.updater=actor;object.updatedAt=at;}
   function saveSpec(data,input,actor=defaultActor,at=timestamp()){
     const name=String(input.name||'').trim();if(!name)throw Error('请输入规格书名称');if(name.length>60)throw Error('规格书名称不能超过60个字符');
-    groupOf(data,input.groupId);const old=data.templates.find(t=>t.id===input.id);
-    if(old&&old.groupId!==input.groupId)throw Error('已有规格书不可直接变更一级品线归属');
-    if(data.templates.some(t=>t.id!==input.id&&t.groupId===input.groupId&&t.name.trim().toLowerCase()===name.toLowerCase()))throw Error('该一级品线下已存在同名规格书');
+    const old=data.templates.find(t=>t.id===input.id);
+    if(data.templates.some(t=>t.id!==input.id&&t.name.trim().toLowerCase()===name.toLowerCase()))throw Error('已存在同名规格书');
     const errors=validate(input.fields||[]);if(errors.length)throw Error(errors[0].message);
-    const next=clone(data);const t={...(old||{}),id:old?.id||input.id||uid(),name,groupId:input.groupId,fields:clone(input.fields),creator:old?.creator||actor,createdAt:old?.createdAt||at,updater:actor,updatedAt:at};
+    const next=clone(data);const t={...(old||{}),id:old?.id||input.id||uid(),name,groupId:null,fields:clone(input.fields),creator:old?.creator||actor,createdAt:old?.createdAt||at,updater:actor,updatedAt:at};
     t.fields.forEach(f=>{f.name=f.name.trim();f.key=f.key.trim();if(f.type==='table'){f.columns=(f.columns||[]).map(c=>({...c,name:c.name.trim(),key:c.key.trim()}));delete f.rows;}});
     const index=next.templates.findIndex(v=>v.id===t.id);if(index<0)next.templates.push(t);else next.templates[index]=t;return next;
   }
   function configureLine(data,lineId,templateIds,primaryTemplateId,actor=defaultActor,at=timestamp()){
-    const {group}=lineOf(data,lineId);assertLinks(data,group,templateIds,primaryTemplateId);
+    lineOf(data,lineId);assertLinks(data,templateIds,primaryTemplateId);
     const next=clone(data),{line}=lineOf(next,lineId);line.templateIds=[...new Set(templateIds)];line.primaryTemplateId=primaryTemplateId;touch(line,actor,at);return next;
   }
   function setGroupDefault(data,groupId,templateId,actor=defaultActor,at=timestamp()){
-    groupOf(data,groupId);ownedSpec(data,groupId,templateId);const next=clone(data),g=groupOf(next,groupId);g.defaultTemplateId=templateId;touch(g,actor,at);return next;
+    groupOf(data,groupId);specOf(data,templateId);const next=clone(data),g=groupOf(next,groupId);g.defaultTemplateId=templateId;touch(g,actor,at);return next;
   }
   function specLines(data,templateId){specOf(data,templateId);return data.groups.flatMap(g=>g.children.filter(c=>c.templateIds.includes(templateId)).map(c=>({id:c.id,name:c.name,groupId:g.id,groupName:g.name,primary:c.primaryTemplateId===templateId})));}
-  function setSpecLines(data,templateId,selectedIds,primaryChoices={},actor=defaultActor,at=timestamp()){
+  function setSpecLines(){throw Error('一期请在品线管理中关联规格书');}
+  function retiredSetSpecLines(data,templateId,selectedIds,primaryChoices={},actor=defaultActor,at=timestamp()){
     const t=specOf(data,templateId),g=groupOf(data,t.groupId),selected=new Set(selectedIds);
     for(const id of selected){if(lineOf(data,id).group.id!==g.id)throw Error('只能关联所属一级品线下的二级品线');}
     for(const [id,value] of Object.entries(primaryChoices)){
@@ -128,8 +128,8 @@
     return next;
   }
   function initializationReport(data){const result={pending:[],ready:[],blocked:[]};for(const g of data.groups){for(const c of g.children){try{
-    if(!c.templateIds.length){if(!g.defaultTemplateId)throw Error('一级品线尚未设置默认模板');ownedSpec(data,g.id,g.defaultTemplateId);result.pending.push({id:c.id,name:c.name,groupName:g.name});}
-    else{assertLinks(data,g,c.templateIds,c.primaryTemplateId);result.ready.push({id:c.id,name:c.name});}
+    if(!c.templateIds.length){if(!g.defaultTemplateId)throw Error('一级品线尚未设置默认模板');specOf(data,g.defaultTemplateId);result.pending.push({id:c.id,name:c.name,groupName:g.name});}
+    else{assertLinks(data,c.templateIds,c.primaryTemplateId);result.ready.push({id:c.id,name:c.name});}
     }catch(e){result.blocked.push({id:c.id,name:c.name,groupName:g.name,message:e.message});}}}return result;}
   function initializeLinks(data,actor='初始化',at=timestamp()){
     const report=initializationReport(data);if(report.blocked.length)throw Error(report.blocked.map(x=>x.groupName+' / '+x.name+'：'+x.message).join('；'));
@@ -137,10 +137,10 @@
   }
   function createLine(data,groupId,name,actor=defaultActor,at=timestamp()){
     const g=groupOf(data,groupId);name=String(name||'').trim();if(!name)throw Error('请输入二级品线名称');if(name.length>40)throw Error('品线名称不能超过40个字符');if(g.children.some(c=>c.name.toLowerCase()===name.toLowerCase()))throw Error('同一级品线下已存在同名品线');
-    if(!g.defaultTemplateId)throw Error('请先设置一级品线默认模板');ownedSpec(data,g.id,g.defaultTemplateId);
+    if(!g.defaultTemplateId)throw Error('请先设置一级品线默认模板');specOf(data,g.defaultTemplateId);
     const next=clone(data);groupOf(next,groupId).children.push({id:uid(),name,code:nextChildCode(g),templateIds:[g.defaultTemplateId],primaryTemplateId:g.defaultTemplateId,creator:actor,updater:actor,updatedAt:at});return next;
   }
-  function spuSelection(data,lineId,templateId){const {group,line}=lineOf(data,lineId);assertLinks(data,group,line.templateIds,line.primaryTemplateId);const id=templateId||line.primaryTemplateId;if(!line.templateIds.includes(id))throw Error('只能选择该二级品线已关联的规格书');return{templates:line.templateIds.map(id=>clone(specOf(data,id))),selected:clone(specOf(data,id)),primaryTemplateId:line.primaryTemplateId};}
+  function spuSelection(data,lineId,templateId){const {group,line}=lineOf(data,lineId);assertLinks(data,line.templateIds,line.primaryTemplateId);const id=templateId||line.primaryTemplateId;if(!line.templateIds.includes(id))throw Error('只能选择该二级品线已关联的规格书');return{templates:line.templateIds.map(id=>clone(specOf(data,id))),selected:clone(specOf(data,id)),primaryTemplateId:line.primaryTemplateId};}
   function validShape(data){return data&&data.schema===2&&Array.isArray(data.groups)&&Array.isArray(data.templates)&&data.groups.every(g=>g&&typeof g.id==='string'&&Array.isArray(g.children)&&g.children.every(c=>c&&Array.isArray(c.templateIds)))&&data.templates.every(t=>t&&typeof t.id==='string'&&typeof t.name==='string'&&Array.isArray(t.fields));}
   function upgradeTemplates(old){
     if(validShape(old))return clone(old);
