@@ -163,5 +163,40 @@
     return data;
   }
 
-  return{MODULES,TYPES,ATTACHMENT_MAX_BYTES,ATTACHMENT_ACCEPT,validateAttachment,newField,newColumn,productPartsColumns,blankRow,validateTableRows,clone,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed,baseFields:base,saveSpec,configureLine,setGroupDefault,specLines,setSpecLines,initializationReport,initializeLinks,createLine,spuSelection,upgradeTemplates,seedTemplates};
+  function cloneFields(sourceFields){
+    if(!Array.isArray(sourceFields))throw Error('字段配置无效');
+    const fields=[];
+    for(const source of clone(sourceFields)){
+      if(!source||typeof source!=='object')throw Error('字段配置无效');
+      const module=source.module||'basic';
+      const fresh=newField(fields,module);
+      const next={...source,id:fresh.id,key:fresh.key,module};
+      delete next.rows;
+      if(next.type==='table'){
+        const columns=[];
+        for(const column of Array.isArray(source.columns)?source.columns:[]){
+          if(!column||typeof column!=='object')throw Error('表格列配置无效');
+          const freshColumn=newColumn(columns,column.name||'');
+          columns.push({...column,id:freshColumn.id,key:freshColumn.key});
+        }
+        next.columns=columns;
+      }else delete next.columns;
+      fields.push(next);
+    }
+    return fields;
+  }
+  function copiedSpecName(sourceName,currentName,existingNames=[]){
+    const current=String(currentName??'').trim();
+    if(current)return current;
+    const taken=new Set((existingNames||[]).map(name=>String(name??'').trim().toLowerCase()));
+    const raw=(String(sourceName??'').trim()||'规格书')+'副本';
+    for(let index=1;index<1000;index++){
+      const suffix=index===1?'':String(index);
+      const name=(raw.slice(0,Math.max(1,60-suffix.length))+suffix).slice(0,60);
+      if(!taken.has(name.toLowerCase()))return name;
+    }
+    throw Error('无法生成不重复的规格书名称');
+  }
+
+  return{MODULES,TYPES,ATTACHMENT_MAX_BYTES,ATTACHMENT_ACCEPT,validateAttachment,newField,newColumn,productPartsColumns,blankRow,validateTableRows,clone,cloneFields,copiedSpecName,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed,baseFields:base,saveSpec,configureLine,setGroupDefault,specLines,setSpecLines,initializationReport,initializeLinks,createLine,spuSelection,upgradeTemplates,seedTemplates};
 });
