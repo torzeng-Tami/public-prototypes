@@ -1,6 +1,6 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.SpecModel=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
   const MODULES=[{id:'basic',name:'基础信息',icon:'file',description:'定义产品身份、型号与基础规格信息'},{id:'parts',name:'产品主要部件',icon:'layers',description:'维护核心组件、材料及供应商信息'},{id:'performance',name:'产品性能',icon:'activity',description:'定义额定参数、性能指标与测试要求'},{id:'safety',name:'安规重要零件',icon:'shield',description:'维护安规关键零件及认证信息'}];
-  const TYPES={text:'文本填写框',textarea:'多行文本框',number:'数字填写框',select:'下拉单选框',multi:'下拉多选框',date:'日期选择器',attachment:'上传附件'};
+  const TYPES={text:'文本填写框',textarea:'多行文本框',number:'数字填写框',select:'下拉单选框',multi:'下拉多选框',date:'日期选择器',attachment:'上传附件',table:'明细表格'};
   const clone=x=>JSON.parse(JSON.stringify(x));
   const uid=()=>typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const options=v=>[...new Set(String(v||'').split(/[,，\n;；]/).map(s=>s.trim()).filter(Boolean))];
@@ -19,6 +19,12 @@
     while(keys.has(key.toLowerCase()))key=stem+'_'+index++;
     return field(module,'',key);
   }
+  function newColumn(columns,name=''){const stem='col_'+uid().replace(/[^a-zA-Z0-9_]/g,'');let key=stem,index=1;const keys=new Set(columns.map(c=>String(c.key).toLowerCase()));while(keys.has(key.toLowerCase()))key=stem+'_'+index++;return{id:uid(),name,key,type:'text',required:false,options:'',value:''};}
+  function productPartsColumns(){const columns=[];const defs=[['部件名称','text',true],['部件尺寸(cm)','text',true],['材质','text',true],['规格/壁厚','text',true],['表面处理','text',true],['备注','textarea',false]];for(const [name,type,required] of defs){const column=newColumn(columns,name);column.type=type;column.required=required;columns.push(column);}return columns;}
+  function blankRow(columns){return Object.fromEntries(columns.map(c=>[c.key,'']));}
+  function rowEmpty(columns,row){return columns.every(c=>!String(row?.[c.key]??'').trim());}
+  function validateColumn(column,fail){if(!column.name?.trim())fail('列名称不能为空');if(!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(String(column.key||'')))fail('列标识无效');if(!Object.hasOwn(TYPES,column.type)||column.type==='table')fail('列控件类型无效');if(['select','multi'].includes(column.type)&&!options(column.options).length)fail('请填写可选值');if(column.type==='attachment'&&String(column.value??'').trim())fail('上传附件不支持设置默认文件');}
+  function validateTableRows(field,rows){const errors=[],columns=field.columns||[];if(!Array.isArray(rows)||!rows.length){if(field.required)errors.push({id:field.id,row:0,message:'明细表格至少填写一行'});return errors;}rows.forEach((row,rowIndex)=>{if(rowEmpty(columns,row)){if(field.required)errors.push({id:field.id,row:rowIndex,message:'不能保存全空行'});return;}columns.forEach(column=>{const value=String(row?.[column.key]??'').trim();const fail=message=>errors.push({id:field.id,row:rowIndex,columnKey:column.key,message:column.name+'：'+message});if(column.required&&!value)fail('请填写'+column.name);if(value&&['select','multi'].includes(column.type)){const opts=options(column.options),selected=column.type==='multi'?options(value):[value];if(selected.some(x=>!opts.includes(x)))fail('填写值必须属于可选值');}if(value&&column.type==='number'&&!Number.isFinite(Number(value)))fail('请输入有效数字');if(value&&column.type==='date'){const date=new Date(value+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)fail('请输入有效日期');}});});return errors;}
   function base(){return[
     field('basic','产品名称','product_name','text',true),field('basic','产品型号','product_model','text',true),
     field('basic','产品颜色','product_color','select',true,'白色','白色,黑色,灰色'),field('basic','销售区域','sales_region','multi',false,'欧洲','欧洲,北美,日本,中国'),
@@ -38,6 +44,7 @@
       const k=f.key.trim().toLowerCase();if(keys.has(k))fail('字段标识重复，请使用唯一标识');keys.add(k);
       if(!MODULES.some(m=>m.id===f.module))fail('字段所属模块无效');
       if(!Object.hasOwn(TYPES,f.type))fail('控件类型无效');
+      if(f.type==='table'){if(!Array.isArray(f.columns)||!f.columns.length)fail('明细表格至少配置一列');const keys=new Set();for(const column of f.columns||[]){validateColumn(column,fail);const key=String(column.key||'').toLowerCase();if(keys.has(key))fail('列标识重复');keys.add(key);}if(Array.isArray(f.rows))errors.push(...validateTableRows(f,f.rows));}
       if(['select','multi'].includes(f.type)){const opts=options(f.options);if(!opts.length)fail('请填写可选值');const selected=f.type==='multi'?options(f.value):String(f.value??'').trim()?[String(f.value??'').trim()]:[];if(selected.some(x=>!opts.includes(x)))fail('默认值必须属于可选值');}
       if(f.type==='attachment'&&String(f.value??'').trim())fail('上传附件不支持设置默认文件');
       if(f.type==='number'&&String(f.value??'').trim()&&!Number.isFinite(Number(f.value)))fail('请输入有效的数字默认值');
@@ -85,7 +92,7 @@
     if(data.templates.some(t=>t.id!==input.id&&t.groupId===input.groupId&&t.name.trim().toLowerCase()===name.toLowerCase()))throw Error('该一级品线下已存在同名规格书');
     const errors=validate(input.fields||[]);if(errors.length)throw Error(errors[0].message);
     const next=clone(data);const t={...(old||{}),id:old?.id||input.id||uid(),name,groupId:input.groupId,fields:clone(input.fields),creator:old?.creator||actor,createdAt:old?.createdAt||at,updater:actor,updatedAt:at};
-    t.fields.forEach(f=>{f.name=f.name.trim();f.key=f.key.trim();});
+    t.fields.forEach(f=>{f.name=f.name.trim();f.key=f.key.trim();if(f.type==='table'){f.columns=(f.columns||[]).map(c=>({...c,name:c.name.trim(),key:c.key.trim()}));delete f.rows;}});
     const index=next.templates.findIndex(v=>v.id===t.id);if(index<0)next.templates.push(t);else next.templates[index]=t;return next;
   }
   function configureLine(data,lineId,templateIds,primaryTemplateId,actor=defaultActor,at=timestamp()){
@@ -156,5 +163,5 @@
     return data;
   }
 
-  return{MODULES,TYPES,ATTACHMENT_MAX_BYTES,ATTACHMENT_ACCEPT,validateAttachment,newField,clone,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed,baseFields:base,saveSpec,configureLine,setGroupDefault,specLines,setSpecLines,initializationReport,initializeLinks,createLine,spuSelection,upgradeTemplates,seedTemplates};
+  return{MODULES,TYPES,ATTACHMENT_MAX_BYTES,ATTACHMENT_ACCEPT,validateAttachment,newField,newColumn,productPartsColumns,blankRow,validateTableRows,clone,uid,options,field,validate,createVersion,publish,published,setDefault,nextChildCode,createChild,seed,baseFields:base,saveSpec,configureLine,setGroupDefault,specLines,setSpecLines,initializationReport,initializeLinks,createLine,spuSelection,upgradeTemplates,seedTemplates};
 });
