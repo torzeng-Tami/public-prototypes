@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const M=require('../docs/product-spec-config/model.js');
-test('seed has four modules and multiple published versions',()=>{const s=M.seed(); assert.equal(M.MODULES.length,4); assert.ok(s.groups[0].children[0].versions.filter(v=>v.status==='published').length>=2);});
+test('seed has four modules and multiple published versions',()=>{const s=M.seed(); assert.equal(M.MODULES.length,7);assert.deepEqual(M.MODULES.slice(-3).map(m=>m.name),['产品标贴','产品包装','认证信息']); assert.ok(s.groups[0].children[0].versions.filter(v=>v.status==='published').length>=2);});
 test('new version snapshots parent template without sharing fields',()=>{const s=M.seed(),g=s.groups[0],c=g.children[0];const v=M.createVersion(c,g.template,'V3.0','新品专用');v.fields[0].name='Changed';assert.notEqual(g.template[0].name,'Changed');assert.equal(v.status,'draft');assert.equal(v.number,'V3.0');});
 test('duplicate normalized version identifiers are rejected',()=>{const c=M.seed().groups[0].children[0];assert.throws(()=>M.createVersion(c,[],' v1.0 ','x'),/版本号/);});
 test('published source remains unchanged after clone editing',()=>{const c=M.seed().groups[0].children[0],v=M.createVersion(c,c.versions[0].fields,'V9.0','副本');v.fields.pop();assert.notEqual(v.fields.length,c.versions[0].fields.length);});

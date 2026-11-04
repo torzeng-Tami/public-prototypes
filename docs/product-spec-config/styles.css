@@ -75,3 +75,5 @@ dialog{border:0;padding:0;border-radius:10px;box-shadow:0 25px 100px #1428393b;w
 .line-table .col-link{width:140px}
 .line-table .col-category{width:64px}
 .line-table .col-note{width:48px}
+
+.anyfill-list{display:flex;flex-direction:column;gap:8px}.anyfill-row{display:flex;align-items:center;gap:8px}.anyfill-row input{flex:1;min-width:0}.anyfill-add{width:34px;min-width:34px;height:34px;padding:0;font-size:18px;line-height:1}.anyfill-status{font-size:12px}.anyfill-status.ok{color:#267c65}.anyfill-status.bad{color:#c34e57}.anyfill-option{display:flex;align-items:center;gap:6px;margin-top:6px;color:#607480}.anyfill-option input{width:15px;height:15px;min-height:15px;padding:0}.image-limit{display:flex;align-items:center;gap:6px;margin-top:6px;color:#607480}.image-limit input{width:72px;min-height:28px}.drawer .module-tabs{flex-wrap:wrap;gap:2px 14px}.module-tab{white-space:nowrap}
