@@ -114,12 +114,18 @@
   function ownedSpec(data,groupId,id){const t=specOf(data,id);if(t.groupId!==groupId)throw Error('只能选择同一一级品线下的规格书');return t;}
   function assertLinks(data,ids,primary){if(!Array.isArray(ids)||!ids.length)throw Error('每个二级品线至少关联一个规格书');for(const id of ids)specOf(data,id);if(typeof primary!=='string'||!ids.includes(primary))throw Error('必须在已关联规格书中选择一个主模板');}
   function touch(object,actor,at){object.updater=actor;object.updatedAt=at;}
+  function normalizeRemark(value){
+    const remark=String(value??'').trim();
+    if(remark.length>200)throw Error('备注不能超过200个字符');
+    return remark;
+  }
   function saveSpec(data,input,actor=defaultActor,at=timestamp()){
     const name=String(input.name||'').trim();if(!name)throw Error('请输入规格书名称');if(name.length>60)throw Error('规格书名称不能超过60个字符');
     const old=data.templates.find(t=>t.id===input.id);
+    const remark=input.remark===undefined?String(old?.remark||'').trim():normalizeRemark(input.remark);
     if(data.templates.some(t=>t.id!==input.id&&t.name.trim().toLowerCase()===name.toLowerCase()))throw Error('已存在同名规格书');
     const errors=validate(input.fields||[]);if(errors.length)throw Error(errors[0].message);
-    const next=clone(data);const t={...(old||{}),id:old?.id||input.id||uid(),name,groupId:null,fields:clone(input.fields),creator:old?.creator||actor,createdAt:old?.createdAt||at,updater:actor,updatedAt:at};
+    const next=clone(data);const t={...(old||{}),id:old?.id||input.id||uid(),name,remark,groupId:null,fields:clone(input.fields),creator:old?.creator||actor,createdAt:old?.createdAt||at,updater:actor,updatedAt:at};
     t.fields.forEach(f=>{f.name=f.name.trim();f.key=f.key.trim();if(f.type==='table'){f.columns=(f.columns||[]).map(c=>({...c,name:c.name.trim(),key:c.key.trim()}));delete f.rows;delete f.entries;}});
     const index=next.templates.findIndex(v=>v.id===t.id);if(index<0)next.templates.push(t);else next.templates[index]=t;return next;
   }
@@ -186,9 +192,9 @@
   function seedTemplates(){
     const old=seed();for(const g of old.groups)for(const c of g.children)c.versions=[];
     let data=upgradeTemplates(old);delete data.migration;
-    data=saveSpec(data,{groupId:'home',name:'家电海外销售规格书',fields:[...base(),field('basic','包装语言','package_language','select',true,'英语','英语,德语,法语')]},defaultActor,'2026-11-03 09:00');
-    data=saveSpec(data,{groupId:'home',name:'清洁电器规格书',fields:[...base(),field('performance','吸力（Pa）','suction','number',true)]},defaultActor,'2026-11-03 09:20');
-    data=saveSpec(data,{groupId:'kitchen',name:'食品接触类规格书',fields:[...base(),field('safety','食品接触认证','food_contact','text',true)]},defaultActor,'2026-11-03 09:40');
+    data=saveSpec(data,{groupId:'home',name:'家电海外销售规格书',remark:'适用于家用电器出口销售，覆盖欧洲、北美等市场',fields:[...base(),field('basic','包装语言','package_language','select',true,'英语','英语,德语,法语')]},defaultActor,'2026-11-03 09:00');
+    data=saveSpec(data,{groupId:'home',name:'清洁电器规格书',remark:'适用于吸尘器、洗地机等清洁类产品',fields:[...base(),field('performance','吸力（Pa）','suction','number',true)]},defaultActor,'2026-11-03 09:20');
+    data=saveSpec(data,{groupId:'kitchen',name:'食品接触类规格书',remark:'适用于厨房电器中与食品接触的产品',fields:[...base(),field('safety','食品接触认证','food_contact','text',true)]},defaultActor,'2026-11-03 09:40');
     return data;
   }
 
