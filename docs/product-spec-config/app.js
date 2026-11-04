@@ -146,7 +146,7 @@ else if(action==='tab'){d.tab=b.dataset.tab;renderDrawer();$(`#drawer [data-tab=
 else if(action==='add-field'){d.working.fields.push(M.newField(d.working.fields,d.tab));markDirty();renderDrawer();$('#drawer .field-table tbody tr:last-child input')?.focus();}
 else if(action==='required'){const f=d.working.fields.find(f=>f.id===b.dataset.id);f.required=!f.required;markDirty();renderDrawer();}
 else if(action==='move-up'||action==='move-down')moveField(b.dataset.id,action==='move-up'?-1:1);
-else if(action==='delete-field'){const f=d.working.fields.find(f=>f.id===b.dataset.id);confirmModal('删除字段？',`删除「${f.name||'未命名字段'}」后需保存模板才会生效。`,'确认删除',()=>{d.working.fields=d.working.fields.filter(x=>x.id!==f.id);markDirty();renderDrawer();});}
+else if(action==='delete-field'){const id=b.dataset.id;d.working.fields=d.working.fields.filter(x=>x.id!==id);markDirty();renderDrawer();}
 else if(action==='save')saveEditor();
 else if(action==='preview-fields')openModal('规格书表单预览',`<p class="small muted">基于当前未保存配置预览</p>${previewSections(d.working)}`,btn('关闭预览','close-modal'),{kind:'preview'},true);
 else if(action==='pick-specs'){modalContext.picker=true;modalContext.draftIds=[...modalContext.ids];renderLineConfig();}
