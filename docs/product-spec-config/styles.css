@@ -84,3 +84,8 @@ dialog{border:0;padding:0;border-radius:10px;box-shadow:0 25px 100px #1428393b;w
 
 .spec-table{min-width:980px}.spec-table th:first-child{width:28%}.spec-table th:nth-child(2){width:24%}.spec-table th:last-child{width:110px}.spec-table td{height:auto;min-height:72px;vertical-align:middle}.spec-remark{font-size:12px;line-height:1.55;color:#5c6e79;overflow-wrap:anywhere;white-space:normal}.spec-remark.is-empty{color:#b4bec6}.drawer .version-form{grid-template-columns:1fr}.spec-remark-field textarea{width:100%;min-height:68px;height:68px;max-height:140px;resize:vertical;font-size:12px;line-height:1.5;background:#fff}
 @media(max-width:1100px){.spec-table th:first-child{width:30%}.spec-table th:nth-child(2){width:24%}}
+
+/* Column defaults: scoped to the configuration dialog. */
+.column-config-table{min-width:900px}.column-config-table th:nth-child(1){width:18%}.column-config-table th:nth-child(2){width:16%}.column-config-table th:nth-child(3){width:6%}.column-config-table th:nth-child(4){width:17%}.column-config-table th:nth-child(5){width:28%}.column-config-table th:last-child{width:15%}.column-config-table td{vertical-align:top}.column-config-table input:not([type=checkbox]),.column-config-table select,.column-config-table textarea{width:100%;min-width:0}.column-config-table textarea{min-height:60px;resize:vertical}.column-default-hint{display:block;color:#66837c;font-size:11px;line-height:1.6;margin-top:5px}
+
+#modal.column-default-dialog{width:min(1120px,calc(100vw - 40px));max-width:1120px}.column-default-dialog .association-table td:last-child{white-space:nowrap}@media(max-width:700px){.column-default-dialog .table-scroll:before{content:'左右滑动表格，可配置默认值与操作列';display:block;position:sticky;left:0;color:#66837c;font-size:11px;margin-bottom:8px}}
